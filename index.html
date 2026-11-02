@@ -151,6 +151,14 @@ p { margin: 0; }
 .jbar { display: flex; align-items: center; gap: 10px; }
 .jt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .jt h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jt > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* журнал: шапка в одну строку — ☰, день, поиск, уведомления, касса */
+.jbar.j { gap: 6px; }
+.jbar.j .icon-btn { width: 40px; height: 40px; }
+.jbar.j .paid-pill { padding: 6px 10px; }
+.cl-strip { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 6px 0 12px; border-radius: 12px; background: var(--good-bg); color: var(--good-fg); font-size: 14px; font-weight: 600; }
+.cl-strip > button:first-child { flex: 1; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; display: flex; align-items: center; justify-content: space-between; min-height: 40px; padding: 0; }
+.cl-strip .x { width: 32px; height: 32px; border: 0; background: transparent; color: inherit; font-size: 20px; line-height: 1; opacity: .7; }
 .paid-pill { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; padding: 8px 12px; border-radius: 14px; border: 0; background: var(--inv); color: var(--inv-fg); flex-shrink: 0; }
 .paid-pill span { font-size: 11px; color: var(--inv-muted); }
 .paid-pill b { font-size: 16px; font-variant-numeric: tabular-nums; }
@@ -236,9 +244,9 @@ p { margin: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--soft); background: var(--surface); border-radius: 14px; padding: 10px 12px; }
 .legend span { display: flex; align-items: center; gap: 5px; }
 .sw-k { width: 14px; height: 14px; border-radius: 4px; border: 1px solid; display: inline-block; flex-shrink: 0; }
-.fabs { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; align-items: flex-end; gap: 10px; z-index: 7; }
-.fab { width: 64px; height: 64px; border-radius: 22px; border: 0; background: var(--inv); color: var(--inv-fg); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
-.fab-walk { height: 48px; padding: 0 18px; border-radius: 16px; background: var(--surface); border: 1.5px solid var(--ink); display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; box-shadow: var(--shadow); }
+.fabs { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: row; align-items: center; gap: 8px; z-index: 7; }
+.fab { width: 56px; height: 56px; border-radius: 22px; border: 0; background: var(--inv); color: var(--inv-fg); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
+.fab-walk { height: 44px; padding: 0 14px; border-radius: 14px; background: var(--surface); border: 1.5px solid var(--ink); display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; box-shadow: var(--shadow); }
 
 /* schedule */
 .sch-wrap { overflow-x: auto; background: var(--surface); border-radius: 18px; margin-inline: -8px; }
@@ -412,13 +420,14 @@ var COUNTRY = {
 var ALL_METHODS = COUNTRY.TJ.methods.concat(COUNTRY.RU.methods);
 var EXP_CATS = ['Аренда', 'Свет, вода, интернет', 'Расходники', 'Реклама', 'Хозяйство', 'Прочее'];
 var MONS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+var MONG = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 var MONN = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 var WD = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 var WDF = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
 var WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 var CUTS = ['Фейд 0 → 1,5, сверху ножницы 4 см', 'Классика, виски 3 мм, сверху 5 см', 'Кроп, сверху текстура, чёлка вперёд', 'Андеркат 0, сверху 6 см назад', 'Бокс, борода под 3 мм'];
 var ROLE = { owner: 'Владелец', admin: 'Админ', master: 'Мастер' };
-var VER = '0.3.2';
+var VER = '0.3.3';
 /* modules: everything is on during the test; the owner switches off what is not needed */
 var MODULES = [
   ['salary', 'Зарплата и авансы', 'Схемы оплаты мастеров, авансы, премии, штрафы, «Выплачено»'],
@@ -1097,10 +1106,13 @@ function vDrawer() {
 VIEWS.journal = function () {
   var date = ui.date, t = todayKey(), list = apptsOn(date), st = dayStats(date);
   var d0 = parseKey(date), u = unread();
-  var right = role() === 'master' ? '' : '<button class="icon-btn bell" data-a="openInbox" aria-label="Уведомления' + (u ? ': ' + u + ' новых' : '') + '">' + IC.bell + (u ? '<i class="badge">' + u + '</i>' : '') + '</button>';
-  if (canMoney()) right += '<button class="paid-pill" data-a="kassa" data-v="' + date + '"><span>' + (date === t ? 'Оплачено сегодня' : 'Оплачено') + '</span><b>' + money(st.total) + '</b></button>';
-  else { var myE = dayEarn(me(), date); right += '<button class="paid-pill" data-a="nav" data-v="myEarn"><span>Мой заработок</span><b>' + money(myE.earned) + '</b></button>'; }
-  var h = tabHdr(dayLabel(date), db.salon + ' · ' + MONN[d0.getMonth()] + ' ' + d0.getFullYear(), right);
+  var right = '<button class="icon-btn" data-a="openSearch" aria-label="Найти запись">' + IC.search + '</button>';
+  right += role() === 'master' ? '' : '<button class="icon-btn bell" data-a="openInbox" aria-label="Уведомления' + (u ? ': ' + u + ' новых' : '') + '">' + IC.bell + (u ? '<i class="badge">' + u + '</i>' : '') + '</button>';
+  if (canMoney()) right += '<button class="paid-pill" data-a="kassa" data-v="' + date + '" aria-label="Оплачено за день: ' + money(st.total) + '"><span>Касса</span><b>' + money(st.total) + '</b></button>';
+  else { var myE = dayEarn(me(), date); right += '<button class="paid-pill" data-a="nav" data-v="myEarn" aria-label="Мой заработок за день"><span>Заработок</span><b>' + money(myE.earned) + '</b></button>'; }
+  /* заголовок короткий, чтобы не обрезался: «Сегодня» / «Завтра» / «Ср»; число и месяц — строкой выше */
+  var rel = date === t ? 'Сегодня' : date === addDays(t, 1) ? 'Завтра' : date === addDays(t, -1) ? 'Вчера' : WDF[d0.getDay()];
+  var h = tabHdr(rel, d0.getDate() + ' ' + MONG[d0.getMonth()] + (d0.getFullYear() !== parseKey(t).getFullYear() ? ' ' + d0.getFullYear() : '') + (store.list.length > 1 ? ' · ' + db.salon : ''), right).replace('<header class="jbar">', '<header class="jbar j">');
   if (ui.move) {
     var ma = A(ui.move.id);
     h += '<div class="move-banner"><div><b>Перенос: ' + esc(apptTitle(ma)) + ' · ' + fT(ma.start) + '</b><span>Нажмите на новое время. Можно выбрать другой день.</span></div><button class="btn-sm" data-a="moveCancel">Отмена</button></div>';
@@ -1113,9 +1125,9 @@ VIEWS.journal = function () {
     h += '<button class="day ' + (k === date ? 'on ' : '') + (k === t ? 'today' : '') + '" data-a="day" data-v="' + k + '" aria-pressed="' + (k === date) + '"><span>' + WD[d.getDay()] + '</span><b>' + d.getDate() + '</b><small>' + (n ? n + ' зап.' : '—') + '</small></button>';
   }
   h += '</div><button class="wk-arrow" data-a="week" data-v="7" aria-label="Следующая неделя">' + IC.right + '</button></div>';
-  h += '<div class="row-between">' + (date !== t ? '<button class="today-btn" data-a="day" data-v="' + t + '">← Сегодня</button>' : '<span></span>') + '<span class="chips" style="flex-wrap:nowrap">' +
-    (mod('queue') && date === t ? '<button class="today-btn" data-a="openQueue">' + 'Очередь' + (db.queue.length ? ' · ' + db.queue.length : '') + '</button>' : '') +
-    '<button class="today-btn" data-a="openSearch" aria-label="Найти запись">' + IC.search + '</button></span></div>';
+  var showQ = mod('queue') && date === t && db.queue.length > 0;
+  if (date !== t || showQ) h += '<div class="row-between">' + (date !== t ? '<button class="today-btn" data-a="day" data-v="' + t + '">← Сегодня</button>' : '<span></span>') +
+    (showQ ? '<button class="today-btn" data-a="openQueue">' + 'Очередь' + (db.queue.length ? ' · ' + db.queue.length : '') + '</button>' : '') + '</div>';
   var ucl = ui.move ? [] : unclosedList();
   if (ucl.length) h += '<button class="notice" style="border:0;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px" data-a="openUnclosed"><span><b>Не закрыто ' + ucl.length + ' ' + plural(ucl.length, 'визит', 'визита', 'визитов') + '</b> за прошлые дни — их нет в кассе и зарплате</span>' + IC.right + '</button>';
   if (mod('waitlist') && !ui.move) {
@@ -1167,10 +1179,14 @@ VIEWS.journal = function () {
   h += '<div class="fabs"><button class="fab-walk" data-a="walkin">' + IC.walk + ' С улицы</button><button class="fab" data-a="new" aria-label="Новая запись">' + IC.plus + '</button></div>';
   return h + nav('journal');
 };
+/* первые шаги: тонкая полоска над журналом, по нажатию раскрывается список */
 function checklistCard() {
-  var c = db.checklist;
+  var c = db.checklist, keys = (solo() ? [] : ['masters']).concat(['prices', 'link']);
+  var left = keys.filter(function (k) { return !c[k]; }).length;
+  if (!left) return '';
+  if (!ui.clOpen) return '<div class="cl-strip"><button data-a="clToggle"><span>Настройка: ' + (left === 1 ? 'остался 1 шаг' : 'осталось ' + left + ' ' + plural(left, 'шаг', 'шага', 'шагов')) + '</span>' + IC.right + '</button><button class="x" data-a="hideChecklist" aria-label="Скрыть настройку">×</button></div>';
   var item = function (key, label, act) { return '<button class="item-l ' + (c[key] ? 'done' : '') + '" data-a="' + act + '"><span>' + label + '</span>' + (c[key] ? IC.tick : IC.right) + '</button>'; };
-  return '<section class="checklist"><div class="row-between"><b>Настроим за 3 минуты</b><button class="btn-sm" data-a="hideChecklist">Скрыть</button></div>' +
+  return '<section class="checklist"><div class="row-between"><b>Настроим за 3 минуты</b><button class="btn-sm" data-a="clToggle">Свернуть</button></div>' +
     (solo() ? '' : item('masters', 'Добавьте мастеров — 1 мин', 'clMasters')) + item('prices', 'Проверьте услуги и цены — 1 мин', 'clPrices') + item('link', 'Ссылка на запись для Instagram — 1 мин', 'clLink') + '</section>';
 }
 function apptEl(a, date) {
@@ -3668,6 +3684,7 @@ var ACT = {
   unsavedDrop: function () { ui.sheet = null; ui.f.dirty = false; back(); },
   /* checklist */
   hideChecklist: function () { db.checklist.hidden = true; save(); render(); },
+  clToggle: function () { ui.clOpen = !ui.clOpen; render(); },
   clMasters: function () { go('staff', {}); },
   clPrices: function () { db.checklist.prices = true; save(); go('services', {}); },
   clLink: function () { go('onlineSet', {}); },

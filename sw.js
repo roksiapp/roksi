@@ -1,6 +1,6 @@
 // Roksi: работа без интернета. Страница — сначала из сети (чтобы обновления приходили сами), без сети — из памяти.
 // Шрифты и библиотеки с CDN — из памяти, если уже скачаны. Версию меняет build.js при каждой сборке.
-const CACHE = 'roksi-202611020744';
+const CACHE = 'roksi-202611021046';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
