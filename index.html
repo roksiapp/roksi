@@ -418,7 +418,7 @@ var WDF = ['Воскресенье', 'Понедельник', 'Вторник',
 var WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 var CUTS = ['Фейд 0 → 1,5, сверху ножницы 4 см', 'Классика, виски 3 мм, сверху 5 см', 'Кроп, сверху текстура, чёлка вперёд', 'Андеркат 0, сверху 6 см назад', 'Бокс, борода под 3 мм'];
 var ROLE = { owner: 'Владелец', admin: 'Админ', master: 'Мастер' };
-var VER = '0.3.1';
+var VER = '0.3.2';
 /* modules: everything is on during the test; the owner switches off what is not needed */
 var MODULES = [
   ['salary', 'Зарплата и авансы', 'Схемы оплаты мастеров, авансы, премии, штрафы, «Выплачено»'],
@@ -603,8 +603,11 @@ function A(id) { return db.appts.find(function (a) { return a.id === id; }); }
 function owner() { return db.masters.find(function (m) { return m.role === 'owner'; }); }
 function methodInfo(id) { var m = cc().methods.find(function (x) { return x[0] === id; }) || ALL_METHODS.concat(EXTRA_METHODS).find(function (x) { return x[0] === id; }); return m ? { id: m[0], name: m[1], kind: m[2] } : { id: id, name: id, kind: 'card' }; }
 function isMoney(method) { return methodInfo(method).kind !== 'pre'; }
-function mod(k) { return HIDDEN_MODULES.indexOf(k) === -1 && (!db.modules || db.modules[k] !== false); }
-function shownModules() { return MODULES.filter(function (x) { return HIDDEN_MODULES.indexOf(x[0]) === -1; }); }
+/* тип выбирают при регистрации (02.11.2026): мастер-одиночка не видит зарплату, сотрудников и права; сменить тип — через поддержку */
+function solo() { return db.kind === 'solo'; }
+var SOLO_OFF = ['salary', 'network'];
+function mod(k) { return HIDDEN_MODULES.indexOf(k) === -1 && !(solo() && SOLO_OFF.indexOf(k) !== -1) && (!db.modules || db.modules[k] !== false); }
+function shownModules() { return MODULES.filter(function (x) { return HIDDEN_MODULES.indexOf(x[0]) === -1 && !(solo() && SOLO_OFF.indexOf(x[0]) !== -1); }); }
 
 /* who is working now (prototype: switch in ☰) and what they may do */
 function me() { return (db.me && M(db.me)) || owner() || db.masters[0]; }
@@ -1080,9 +1083,11 @@ function vDrawer() {
   h += '<button class="menu-item" data-a="openShare">' + IC.share + '<span>Поделиться окошками</span></button>';
   h += '<button class="menu-item" data-a="openOnline">' + IC.link + '<span>Онлайн-запись (как видит клиент)</span></button>';
   h += '<button class="menu-item" data-a="openMyBook">' + IC.user + '<span>«Мои записи» клиента</span></button>';
-  h += '<span class="menu-cap">Проверить, как видит сотрудник</span>';
-  staff().forEach(function (m) { var on = m.id === o.id; h += '<button class="menu-item ' + (on ? 'on' : '') + '" data-a="actAs" data-v="' + m.id + '"><span class="av" style="width:24px;height:24px;font-size:11px">' + esc(m.name[0]) + '</span><span>' + esc(m.name) + '</span><small>' + ROLE[m.role] + (on ? ' ✓' : '') + '</small></button>'; });
-  h += '<p class="hint">В настоящей программе каждый входит по своему номеру. Здесь можно переключиться и проверить права.</p>';
+  if (!solo()) {
+    h += '<span class="menu-cap">Проверить, как видит сотрудник</span>';
+    staff().forEach(function (m) { var on = m.id === o.id; h += '<button class="menu-item ' + (on ? 'on' : '') + '" data-a="actAs" data-v="' + m.id + '"><span class="av" style="width:24px;height:24px;font-size:11px">' + esc(m.name[0]) + '</span><span>' + esc(m.name) + '</span><small>' + ROLE[m.role] + (on ? ' ✓' : '') + '</small></button>'; });
+    h += '<p class="hint">В настоящей программе каждый входит по своему номеру. Здесь можно переключиться и проверить права.</p>';
+  }
   h += '<span class="menu-cap">Аккаунт</span>';
   h += '<button class="menu-item" data-a="logout">' + IC.out + '<span>Выйти</span></button>';
   return h + '</nav></div>';
@@ -1166,7 +1171,7 @@ function checklistCard() {
   var c = db.checklist;
   var item = function (key, label, act) { return '<button class="item-l ' + (c[key] ? 'done' : '') + '" data-a="' + act + '"><span>' + label + '</span>' + (c[key] ? IC.tick : IC.right) + '</button>'; };
   return '<section class="checklist"><div class="row-between"><b>Настроим за 3 минуты</b><button class="btn-sm" data-a="hideChecklist">Скрыть</button></div>' +
-    item('masters', 'Добавьте мастеров — 1 мин', 'clMasters') + item('prices', 'Проверьте услуги и цены — 1 мин', 'clPrices') + item('link', 'Ссылка на запись для Instagram — 1 мин', 'clLink') + '</section>';
+    (solo() ? '' : item('masters', 'Добавьте мастеров — 1 мин', 'clMasters')) + item('prices', 'Проверьте услуги и цены — 1 мин', 'clPrices') + item('link', 'Ссылка на запись для Instagram — 1 мин', 'clLink') + '</section>';
 }
 function apptEl(a, date) {
   var top = (a.start - db.open) / 60 * PX, ht = Math.max(a.dur / 60 * PX - 3, 26);
@@ -1827,12 +1832,14 @@ function vMoneyMonth(f) {
   var md = monthData(f.month), pm = monthData(shiftMonth(f.month, -1));
   var best = db.masters.slice().sort(function (a, b) { return md.perM[b.id].rev - md.perM[a.id].rev; })[0];
   var h = monthNav(f);
-  h += '<section class="card inv sec"><span class="inv-muted sm">Прибыль = касса − выплаты мастерам − расходы</span><span class="big">' + money(md.profit) + '</span>' + (pm.tot.total ? '<span class="inv-muted sm">Прошлый месяц: ' + money(pm.profit) + delta(md.profit, pm.profit) + '</span>' : '') + '</section>';
-  h += '<div class="tiles"><button class="tile" data-a="mtab" data-v="day"><span>Касса</span><b>' + money(md.tot.total) + '</b></button><button class="tile" data-a="openSalary"><span>Мастерам</span><b>' + money(md.tot.payouts) + '</b></button><button class="tile" data-a="mtab" data-v="exp"><span>Расходы</span><b>' + money(md.expSum) + '</b></button></div>';
-  if (best && md.perM[best.id].rev > 0) h += '<section class="card sec"><span class="muted sm">Мастер месяца</span><div class="row-between"><b style="font-family:var(--f-disp);font-size:20px">' + esc(best.name) + '</b><b class="num">' + money(md.perM[best.id].rev) + '</b></div><span class="hint">' + md.perM[best.id].n + ' ' + plural(md.perM[best.id].n, 'клиент', 'клиента', 'клиентов') + ' за месяц</span></section>';
-  h += '<section class="card sec"><h2>Мастера</h2>';
-  db.masters.forEach(function (m) { var p = md.perM[m.id]; if (m.fired && !p.n) return; h += '<div class="list-row"><span>' + esc(m.name) + ' <small>· ' + p.n + ' кл. · ' + (m.role === 'owner' ? 'владелец, выручка' : esc(p.sal.note) + (p.sal.bonus || p.sal.fine ? ' · премии/штрафы' : '')) + '</small></span><span class="num">' + (m.role === 'owner' ? money(p.rev) : money(p.pay)) + '</span></div>'; });
-  h += '</section>';
+  h += '<section class="card inv sec"><span class="inv-muted sm">' + (solo() ? 'Прибыль = касса − расходы' : 'Прибыль = касса − выплаты мастерам − расходы') + '</span><span class="big">' + money(md.profit) + '</span>' + (pm.tot.total ? '<span class="inv-muted sm">Прошлый месяц: ' + money(pm.profit) + delta(md.profit, pm.profit) + '</span>' : '') + '</section>';
+  h += '<div class="tiles"><button class="tile" data-a="mtab" data-v="day"><span>Касса</span><b>' + money(md.tot.total) + '</b></button>' + (solo() ? '' : '<button class="tile" data-a="openSalary"><span>Мастерам</span><b>' + money(md.tot.payouts) + '</b></button>') + '<button class="tile" data-a="mtab" data-v="exp"><span>Расходы</span><b>' + money(md.expSum) + '</b></button></div>';
+  if (!solo() && best && md.perM[best.id].rev > 0) h += '<section class="card sec"><span class="muted sm">Мастер месяца</span><div class="row-between"><b style="font-family:var(--f-disp);font-size:20px">' + esc(best.name) + '</b><b class="num">' + money(md.perM[best.id].rev) + '</b></div><span class="hint">' + md.perM[best.id].n + ' ' + plural(md.perM[best.id].n, 'клиент', 'клиента', 'клиентов') + ' за месяц</span></section>';
+  if (!solo()) {
+    h += '<section class="card sec"><h2>Мастера</h2>';
+    db.masters.forEach(function (m) { var p = md.perM[m.id]; if (m.fired && !p.n) return; h += '<div class="list-row"><span>' + esc(m.name) + ' <small>· ' + p.n + ' кл. · ' + (m.role === 'owner' ? 'владелец, выручка' : esc(p.sal.note) + (p.sal.bonus || p.sal.fine ? ' · премии/штрафы' : '')) + '</small></span><span class="num">' + (m.role === 'owner' ? money(p.rev) : money(p.pay)) + '</span></div>'; });
+    h += '</section>';
+  }
   h += '<section class="card sec"><h2>Расходы по статьям</h2>';
   var byCat = {};
   md.exps.forEach(function (e) { byCat[e.cat] = (byCat[e.cat] || 0) + e.amount; });
@@ -2149,7 +2156,9 @@ function vWelcome() {
   h += '<p class="hero" style="margin-top:28px">Запись клиентов, касса и зарплата мастеров — в одном телефоне.</p>';
   h += '<p class="muted">Для барбершопов и салонов. Даже если вы работаете один.</p>';
   if (!storageOk) h += '<div class="notice">Телефон не даёт сохранять данные (например, приватный режим). Всё будет работать, но после закрытия пропадёт.</div>';
-  h += '<button class="cta" style="margin-top:12px" data-a="toRegister">Зарегистрировать компанию</button>';
+  h += '<span class="menu-cap" style="margin-top:12px">Регистрация</span>';
+  h += '<button class="cta" data-a="toRegister" data-v="solo">Я мастер<small style="display:block;font-weight:500;opacity:.75;font-size:13px">работаю один</small></button>';
+  h += '<button class="cta green" data-a="toRegister" data-v="salon">У меня барбершоп<small style="display:block;font-weight:500;opacity:.75;font-size:13px">или салон, есть мастера</small></button>';
   if (store.list.length) {
     h += '<span class="menu-cap">Войти в компанию на этом телефоне</span>';
     store.list.forEach(function (c) { h += '<button class="btn" data-a="switchCompany" data-v="' + c.id + '">' + esc(c.salon) + '</button>'; });
@@ -2158,13 +2167,13 @@ function vWelcome() {
   return h;
 }
 function vRegister() {
-  var f = ui.f, c = COUNTRY[f.country || 'TJ'];
-  var h = '<header class="top"><button class="icon-btn" data-a="toWelcome" aria-label="Назад">' + IC.back + '</button><div class="top-t"><h1>Регистрация компании</h1><span>4 поля — остальное настроите потом</span></div></header>';
+  var f = ui.f, c = COUNTRY[f.country || 'TJ'], one = f.kind === 'solo';
+  var h = '<header class="top"><button class="icon-btn" data-a="toWelcome" aria-label="Назад">' + IC.back + '</button><div class="top-t"><h1>' + (one ? 'Я мастер' : 'Барбершоп или салон') + '</h1><span>' + (one ? 'Имя и телефон — остальное потом' : '4 поля — остальное настроите потом') + '</span></div></header>';
   h += '<section class="card sec"><span class="lbl">Язык · Забон</span><div class="chips">' + [['ru', 'Русский'], ['tj', 'Тоҷикӣ']].map(function (x) { return '<button class="chip ' + ((f.lang || 'ru') === x[0] ? 'on' : '') + '" data-a="set" data-k="lang" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' + (f.lang === 'tj' ? '<p class="hint">Страница записи для клиентов будет на таджикском. Интерфейс салона на таджикском — в следующей версии прототипа.</p>' : '') + '<span class="lbl">Страна</span><div class="chips">' + ['TJ', 'RU'].map(function (k) { return '<button class="chip ' + ((f.country || 'TJ') === k ? 'on' : '') + '" data-a="set" data-k="country" data-v="' + k + '">' + COUNTRY[k].name + '</button>'; }).join('') + '</div>' +
-    '<label class="fld" for="rSalon"><span>Название барбершопа или салона</span><input id="rSalon" data-in="salon" value="' + esc(f.salon || '') + '" placeholder="Например: Barber Sher"></label>' +
+    (one ? '' : '<label class="fld" for="rSalon"><span>Название барбершопа или салона</span><input id="rSalon" data-in="salon" value="' + esc(f.salon || '') + '" placeholder="Например: Barber Sher"></label>') +
     '<label class="fld" for="rName"><span>Ваше имя</span><input id="rName" data-in="me" value="' + esc(f.me || '') + '" placeholder="Имя" autocomplete="given-name"></label>' +
     '<label class="fld" for="rPhone"><span>Ваш номер телефона</span></label><div class="phone-row"><span class="prefix">' + c.code + '</span><input id="rPhone" type="tel" inputmode="tel" data-in="phone" value="' + esc(f.phone || '') + '" placeholder="' + (f.country === 'RU' ? '916 555-12-47' : '93 555 12 47') + '"></div></section>';
-  h += '<section class="card sec" style="background:var(--good-bg);color:var(--good-fg)"><b>Сразу будет готово:</b><span class="sm">вы — первый мастер в журнале, часы 9:00–21:00, 6 услуг с ценами в ' + c.cur + ', ссылка на онлайн-запись. Мастеров, проценты и график добавите внутри.</span></section>';
+  h += '<section class="card sec" style="background:var(--good-bg);color:var(--good-fg)"><b>Сразу будет готово:</b><span class="sm">' + (one ? 'ваш журнал записей, часы 9:00–21:00, 6 услуг с ценами в ' + c.cur + ', касса и ссылка на онлайн-запись для клиентов.' : 'вы — первый мастер в журнале, часы 9:00–21:00, 6 услуг с ценами в ' + c.cur + ', ссылка на онлайн-запись. Мастеров, проценты и график добавите внутри.') + '</span></section>';
   h += '<button class="cta green" data-a="register">Зарегистрировать</button>';
   return h;
 }
@@ -2996,9 +3005,9 @@ VIEWS.manage = function () {
     mod('subs') ? tile('openSubs', IC.ticket, 'Абонементы', db.subs.filter(function (s) { return s.left > 0 && s.until >= t; }).length + ' у клиентов') : null,
     mod('certs') ? tile('openCerts', IC.gift, 'Сертификаты', db.certs.filter(function (c) { return c.left > 0; }).length + ' действуют') : null
   ]);
-  h += sec('Салон', [
+  h += sec(solo() ? 'Работа' : 'Салон', [
     owner ? tile('mServices', IC.scissors, 'Услуги', db.services.filter(function (s) { return !s.archived; }).length + ' · цены и время') : null,
-    owner ? tile('mStaff', IC.users, 'Сотрудники', staff().length + ' · зарплата и права') : null,
+    owner && !solo() ? tile('mStaff', IC.users, 'Сотрудники', staff().length + ' · зарплата и права') : null,
     owner ? tile('openLog', IC.history, 'Журнал действий', 'Кто что менял') : null,
     owner ? tile('openModules', IC.toggles, 'Разделы', 'Включить или выключить лишнее') : null
   ]);
@@ -3022,12 +3031,12 @@ VIEWS.settings = function () {
     row('openNotifs', IC.bell, 'Сообщения клиентам', 'Напоминания, подтверждение, день рождения') +
     row('sPay', IC.card, 'Способы оплаты', cc().methods.map(function (x) { return x[1]; }).join(', ')) +
     (mod('loyalty') ? row('openLoyalty', IC.gift, 'Скидки и бонусы', 'Кешбэк ' + db.loyal.cashback + '%, день рождения ' + db.loyal.bday + '%') : '') +
-    row('sRoles', IC.lock, 'Доступы и права', 'Владелец, админ, мастер') +
+    (solo() ? '' : row('sRoles', IC.lock, 'Доступы и права', 'Владелец, админ, мастер')) +
     row('openModules', IC.toggles, 'Разделы программы', shownModules().filter(function (x) { return mod(x[0]); }).length + ' из ' + shownModules().length + ' включено') +
     row('sCountry', IC.globe, 'Страна, валюта, язык', cc().name + ' · ' + cc().cur + ' · ' + (db.lang === 'tj' ? 'тоҷикӣ' : 'русский')) + '</div>';
   h += '<span class="menu-cap">Данные</span><div class="slist">' + row('openDataIO', IC.file, 'Импорт и экспорт', 'Клиенты из DIKIDI, выгрузка в Excel, резервная копия') + row('openDups', IC.users, 'Похожие клиенты', 'Найти и объединить дубли') + row('openLog', IC.history, 'Журнал действий', 'Кто, что и когда менял') + '</div>';
   h += '<div class="slist">' + row('sData', IC.trash, 'Удалить компанию', 'Стереть все данные этой компании', 'danger') + row('logout', IC.out, 'Выйти', '') + '</div>';
-  h += '<p class="hint">Прототип Roksi ' + VER + '. Данные хранятся только в этом телефоне.</p>';
+  h += '<p class="hint">' + (solo() ? 'Тип: мастер, работаете один. Чтобы добавить мастеров и стать салоном, напишите в поддержку. ' : '') + 'Прототип Roksi ' + VER + '. Данные хранятся только в этом телефоне.</p>';
   return h + nav('settings');
 };
 
@@ -3679,7 +3688,7 @@ var ACT = {
   /* drawer & companies */
   switchCompany: function (el) { setCompany(el.dataset.v); },
   addCompany: function () { ui.drawer = false; ui.sheet = { type: 'addCompany' }; renderOverlay(); },
-  newCompany: function () { ui.sheet = null; db = null; store.current = null; save(); ui = freshUi(); ui.view = 'register'; ui.f = { country: 'TJ' }; render(); },
+  newCompany: function () { ui.sheet = null; db = null; store.current = null; save(); ui = freshUi(); ui.view = 'welcome'; ui.f = {}; render(); },
   addDemo: function () { ui.sheet = null; var d = makeDemo('TJ'); store.list.push(d); setCompany(d.id); toast('Добавлен демо-салон. Переключать компании — в меню ☰'); },
   logout: function () { db = null; store.current = null; save(); ui = freshUi(); ui.view = 'welcome'; render(); },
   openShare: function () { go('share', {}); },
@@ -3687,15 +3696,17 @@ var ACT = {
   seeOnline: function (el) { ui.date = el.dataset.v; home(); },
   onlineSave: onlineSave,
   /* welcome */
-  toRegister: function () { ui.view = 'register'; ui.f = { country: 'TJ' }; render(); },
+  toRegister: function (el) { ui.view = 'register'; ui.f = { country: 'TJ', kind: el.dataset.v === 'solo' ? 'solo' : 'salon' }; render(); },
   toWelcome: function () { ui.view = 'welcome'; ui.f = {}; render(); },
   register: function () {
-    var f = ui.f, country = f.country || 'TJ', ph = normPhone(f.phone, country);
-    if (!(f.salon || '').trim()) { toast('Напишите название компании'); return; }
+    var f = ui.f, country = f.country || 'TJ', ph = normPhone(f.phone, country), one = f.kind === 'solo';
+    if (!one && !(f.salon || '').trim()) { toast('Напишите название компании'); return; }
     if (!(f.me || '').trim()) { toast('Напишите ваше имя'); return; }
     if (ph.length < COUNTRY[country].len) { toast('Напишите номер телефона полностью'); return; }
-    var c = makeCompany(country, f.salon.trim(), f.me.trim(), ph);
+    var c = makeCompany(country, one ? f.me.trim() : f.salon.trim(), f.me.trim(), ph);
     c.lang = f.lang || 'ru';
+    c.kind = one ? 'solo' : 'salon';
+    if (one) c.checklist.masters = true;
     c.log.push({ id: uid(), ts: new Date().toISOString(), who: c.masters[0].id, type: 'settings', text: 'Компания зарегистрирована', ref: null });
     store.list.push(c); setCompany(c.id);
     toast('Готово! Нажмите на пустое время, чтобы записать клиента.');
